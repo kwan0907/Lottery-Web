@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>幸運大抽獎</title>
+    <!-- 引入 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
     <!-- 引入 Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <!-- 引入 Tailwind CSS -->
@@ -13,126 +15,213 @@
     <!-- 引入 Confetti (撒花特效) -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Noto Sans TC"', 'sans-serif'] },
+                    animation: {
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate',
+                    },
+                    keyframes: {
+                        glow: {
+                            '0%': { boxShadow: '0 0 10px rgba(251, 191, 36, 0.2)' },
+                            '100%': { boxShadow: '0 0 30px rgba(251, 191, 36, 0.6), 0 0 10px rgba(251, 191, 36, 0.4)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body { font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif; background-color: #f3f4f6; }
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.5s ease; }
-        .fade-enter-from, .fade-leave-to { opacity: 0; }
-        .shuffling-text { filter: blur(0.5px); opacity: 0.8; }
+        body { 
+            background: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 50%, #fae8ff 100%);
+            min-height: 100vh;
+        }
+        /* 美化捲軸 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #c084fc; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a855f7; }
+        
+        .fade-enter-active, .fade-leave-active { transition: all 0.5s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-20px); }
+        .shuffling-text { filter: blur(0.8px); opacity: 0.7; transform: scale(0.98); transition: all 0.05s; }
+        
+        /* 毛玻璃效果面板 */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
     </style>
 </head>
-<body>
-    <div id="app" class="min-h-screen p-6">
-        <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg p-8">
-            <h1 class="text-3xl font-bold text-center text-blue-600 mb-8">🎉 幸運大抽獎</h1>
+<body class="antialiased text-gray-800 flex items-center justify-center p-4 md:p-8">
+    <div id="app" class="w-full max-w-6xl">
+        
+        <!-- 主容器 -->
+        <div class="glass-panel rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.05)] p-6 md:p-10">
+            <!-- 標題 -->
+            <div class="text-center mb-10">
+                <h1 class="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-500 drop-shadow-sm mb-2">
+                    ✨ 幸運大抽獎 ✨
+                </h1>
+                <p class="text-gray-500 font-medium">LUCKY DRAW SYSTEM</p>
+            </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- 左側：設定區 -->
-                <div class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                <!-- 左側：設定區 (佔 5 欄) -->
+                <div class="lg:col-span-5 space-y-6">
                     
                     <!-- 1. 名單輸入區 -->
-                    <div class="bg-gray-50 p-5 rounded-lg border">
-                        <h2 class="text-xl font-bold mb-3 text-gray-700">1. 匯入抽獎券名單</h2>
-                        <p class="text-sm text-gray-500 mb-2">請將名單貼在下方（例如：a1, a2, jess 1）</p>
-                        <textarea v-model="rawParticipants" :disabled="isDrawing" rows="6" class="w-full border-gray-300 rounded-md p-3 border focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-200" placeholder="jess 1&#10;jess 2&#10;a1&#10;a2..."></textarea>
-                        <div class="mt-2 text-right text-sm font-semibold text-blue-600">
-                            符合目前獎項條件之獎券：{{ validParticipants.length }} 張
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-violet-100 relative overflow-hidden group hover:shadow-md transition">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-violet-400"></div>
+                        <h2 class="text-lg font-bold mb-1 text-violet-900 flex items-center gap-2">
+                            <span>1.</span> 匯入抽獎券名單
+                        </h2>
+                        <p class="text-xs text-gray-400 mb-3">請將名單貼在下方（例如：a1, a2, jess 1）</p>
+                        <textarea v-model="rawParticipants" :disabled="isDrawing" rows="5" 
+                                  class="w-full bg-gray-50 border-gray-200 rounded-xl p-3 border focus:ring-2 focus:ring-violet-400 focus:border-transparent outline-none transition disabled:bg-gray-200 disabled:opacity-70 resize-none text-sm font-medium" 
+                                  placeholder="a1&#10;a2&#10;jess 1..."></textarea>
+                        <div class="mt-3 flex justify-between items-center">
+                            <span class="text-xs text-gray-500">系統將自動過濾已中大獎者</span>
+                            <span class="text-sm font-bold bg-violet-100 text-violet-700 px-3 py-1 rounded-full">
+                                有效獎券：{{ validParticipants.length }} 張
+                            </span>
                         </div>
                     </div>
 
                     <!-- 2. 獎品設定區 -->
-                    <div class="bg-gray-50 p-5 rounded-lg border">
-                        <h2 class="text-xl font-bold mb-3 text-gray-700">2. 設定獎品</h2>
-                        <div class="flex gap-2 mb-4 items-center">
-                            <input v-model="newPrizeName" :disabled="isDrawing" type="text" placeholder="獎品名稱 (如: 鈣片)" class="flex-1 border-gray-300 rounded-md p-2 border disabled:bg-gray-200">
-                            <input v-model.number="newPrizeQty" :disabled="isDrawing" type="number" min="1" placeholder="份數" class="w-20 border-gray-300 rounded-md p-2 border disabled:bg-gray-200">
-                            <label class="flex items-center gap-1 text-sm font-bold text-red-600 whitespace-nowrap cursor-pointer">
-                                <input type="checkbox" v-model="newPrizeIsGrand" :disabled="isDrawing" class="w-4 h-4 cursor-pointer"> 
-                                屬大獎<br><span class="text-xs font-normal">(同人限中1次)</span>
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-fuchsia-100 relative overflow-hidden group hover:shadow-md transition">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-fuchsia-400"></div>
+                        <h2 class="text-lg font-bold mb-4 text-fuchsia-900 flex items-center gap-2">
+                            <span>2.</span> 設定獎品池
+                        </h2>
+                        
+                        <div class="flex flex-wrap gap-2 mb-4 items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <input v-model="newPrizeName" :disabled="isDrawing" type="text" placeholder="獎品名稱 (如: 鈣片)" 
+                                   class="flex-1 min-w-[120px] bg-white border-gray-200 rounded-lg p-2 border focus:ring-2 focus:ring-fuchsia-400 outline-none text-sm">
+                            <input v-model.number="newPrizeQty" :disabled="isDrawing" type="number" min="1" placeholder="份數" 
+                                   class="w-20 bg-white border-gray-200 rounded-lg p-2 border focus:ring-2 focus:ring-fuchsia-400 outline-none text-sm text-center">
+                            
+                            <label class="flex items-center gap-1.5 text-xs font-bold text-rose-500 cursor-pointer hover:bg-rose-50 p-1.5 rounded-lg transition">
+                                <input type="checkbox" v-model="newPrizeIsGrand" :disabled="isDrawing" class="w-4 h-4 accent-rose-500 cursor-pointer"> 
+                                <span>屬大獎<br><span class="font-normal text-[10px] text-gray-400">(同人限中1次)</span></span>
                             </label>
-                            <button @click="addPrize" :disabled="isDrawing" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition disabled:bg-gray-400">新增</button>
-                        </div>
-                        
-                        <!-- 獎品列表 -->
-                        <ul class="space-y-2">
-                            <li v-for="(prize, index) in prizes" :key="index" class="flex justify-between items-center bg-white p-2 rounded border">
-                                <div class="flex items-center flex-wrap gap-2">
-                                    <span class="font-bold text-gray-800">{{ prize.name }}</span>
-                                    <span v-if="prize.isGrandPrize" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-bold">大獎防重複</span>
-                                    <span class="text-gray-500 text-sm">(總數: {{ prize.total }})</span>
-                                </div>
-                                <span class="text-sm font-bold whitespace-nowrap" :class="prize.remain === 0 ? 'text-red-500' : 'text-green-500'">
-                                    剩餘: {{ prize.remain }}
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- 右側：抽獎與結果區 -->
-                <div class="space-y-6">
-                    
-                    <!-- 3. 抽獎區 -->
-                    <div class="bg-blue-50 p-6 rounded-lg border border-blue-100 text-center relative overflow-hidden">
-                        <h2 class="text-2xl font-bold mb-4 text-blue-800">3. 進行抽獎</h2>
-                        
-                        <select v-model="selectedPrizeIndex" :disabled="isDrawing" class="w-full mb-6 p-3 border rounded-md text-lg font-bold disabled:bg-gray-200">
-                            <option value="" disabled>請選擇要抽出的獎品...</option>
-                            <option v-for="(prize, index) in prizes" :value="index" :disabled="prize.remain === 0">
-                                {{ prize.name }} (剩餘 {{ prize.remain }} 份)
-                            </option>
-                        </select>
-
-                        <button @click="drawWinner" 
-                                :disabled="!canDraw || isDrawing"
-                                class="w-full text-white text-2xl font-bold py-4 rounded-full shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2"
-                                :class="isDrawing ? 'bg-yellow-500 hover:bg-yellow-500 cursor-wait animate-pulse' : 'bg-red-500 hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed hover:scale-105'">
-                            {{ isDrawing ? '🎰 緊張開獎中...' : '立刻抽出！' }}
-                        </button>
-
-                        <!-- 最新得獎者展示區 -->
-                        <transition name="fade">
-                            <div v-if="currentWinner" class="mt-6 p-6 rounded-xl border-2 transition-all duration-300"
-                                 :class="isDrawing ? 'bg-white border-gray-300 shadow-inner' : 'bg-yellow-100 border-yellow-400 shadow-xl scale-105'">
-                                <p class="text-gray-600 text-lg mb-2">
-                                    {{ isDrawing ? '正在抽取' : '恭喜獲得' }} 【{{ currentWinnerPrize }}】
-                                </p>
-                                <p class="text-5xl font-black tracking-wider"
-                                   :class="isDrawing ? 'text-gray-400 shuffling-text' : 'text-red-600'">
-                                    {{ currentWinner }}
-                                </p>
-                            </div>
-                        </transition>
-                    </div>
-
-                    <!-- 4. 結果區 -->
-                    <div class="bg-white p-5 rounded-lg border shadow-sm">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-xl font-bold text-gray-700">🏆 得獎名單</h2>
-                            <button @click="exportExcel" :disabled="winners.length === 0 || isDrawing" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 transition flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                </svg>
-                                匯出 Excel
+                            
+                            <button @click="addPrize" :disabled="isDrawing" 
+                                    class="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+                                新增
                             </button>
                         </div>
                         
-                        <div class="overflow-y-auto max-h-64 border rounded-md">
+                        <!-- 獎品列表 -->
+                        <div class="max-h-48 overflow-y-auto pr-1 space-y-2">
+                            <div v-for="(prize, index) in prizes" :key="index" 
+                                 class="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:shadow transition">
+                                <div class="flex items-center flex-wrap gap-2">
+                                    <span class="font-bold text-gray-700">{{ prize.name }}</span>
+                                    <span v-if="prize.isGrandPrize" class="text-[10px] bg-gradient-to-r from-rose-400 to-red-500 text-white px-2 py-0.5 rounded-full font-bold shadow-sm">防重複大獎</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs text-gray-400">共 {{ prize.total }} 份</span>
+                                    <span class="text-sm font-black" :class="prize.remain === 0 ? 'text-gray-300' : 'text-emerald-500'">
+                                        剩 {{ prize.remain }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div v-if="prizes.length === 0" class="text-center text-sm text-gray-400 py-4">
+                                尚未設定任何獎品
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右側：抽獎與結果區 (佔 7 欄) -->
+                <div class="lg:col-span-7 space-y-6 flex flex-col">
+                    
+                    <!-- 3. 抽獎視覺區 -->
+                    <div class="bg-gradient-to-br from-indigo-900 via-violet-900 to-purple-900 rounded-3xl p-8 shadow-2xl relative overflow-hidden flex-1 flex flex-col justify-center">
+                        <!-- 裝飾光暈 -->
+                        <div class="absolute top-[-50%] left-[-10%] w-64 h-64 bg-fuchsia-500 rounded-full mix-blend-multiply filter blur-[80px] opacity-40"></div>
+                        <div class="absolute bottom-[-20%] right-[-10%] w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-[80px] opacity-40"></div>
+                        
+                        <div class="relative z-10 w-full max-w-md mx-auto">
+                            <select v-model="selectedPrizeIndex" :disabled="isDrawing" 
+                                    class="w-full mb-6 p-4 bg-white/10 border border-white/20 rounded-2xl text-white text-lg font-bold text-center appearance-none outline-none focus:ring-2 focus:ring-pink-400 backdrop-blur-md cursor-pointer disabled:opacity-50 custom-select">
+                                <option value="" disabled class="text-gray-800">🎯 請選擇本次要抽出的獎項...</option>
+                                <option v-for="(prize, index) in prizes" :value="index" :disabled="prize.remain === 0" class="text-gray-800">
+                                    {{ prize.name }} (剩餘 {{ prize.remain }} 份)
+                                </option>
+                            </select>
+
+                            <button @click="drawWinner" 
+                                    :disabled="!canDraw || isDrawing"
+                                    class="w-full text-white text-3xl font-black py-6 rounded-2xl shadow-[0_10px_20px_rgba(0,0,0,0.3)] transition-all transform flex items-center justify-center gap-3 relative overflow-hidden group"
+                                    :class="isDrawing ? 'bg-gradient-to-r from-amber-400 to-orange-500 animate-pulse-fast cursor-wait scale-95' : 'bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 hover:from-rose-400 hover:to-red-500 hover:-translate-y-1 hover:shadow-[0_15px_30px_rgba(225,29,72,0.4)] active:translate-y-1 active:shadow-none disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed disabled:transform-none'">
+                                <span class="relative z-10 drop-shadow-md">{{ isDrawing ? '🎰 緊張開獎中...' : '立刻抽出幸運兒！' }}</span>
+                                <!-- 按鈕高光特效 -->
+                                <div v-if="!isDrawing && canDraw" class="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-[shine_1.5s_infinite]"></div>
+                            </button>
+
+                            <!-- 最新得獎者展示區 -->
+                            <transition name="fade">
+                                <div v-if="currentWinner" class="mt-8 text-center"
+                                     :class="isDrawing ? '' : 'animate-glow rounded-3xl p-6 bg-gradient-to-b from-amber-100 to-yellow-50 border-2 border-amber-300'">
+                                    <p class="text-sm font-bold tracking-widest mb-2"
+                                       :class="isDrawing ? 'text-violet-200' : 'text-amber-600'">
+                                        {{ isDrawing ? 'TARGET LOCKING' : 'CONGRATULATIONS' }}
+                                    </p>
+                                    <h3 class="text-2xl font-bold mb-2" :class="isDrawing ? 'text-white' : 'text-gray-700'">
+                                        {{ isDrawing ? '正在抽取：' : '獎項：' }} 【{{ currentWinnerPrize }}】
+                                    </h3>
+                                    <p class="text-6xl md:text-7xl font-black tracking-wider transition-all duration-75"
+                                       :class="isDrawing ? 'text-white/80 shuffling-text' : 'text-transparent bg-clip-text bg-gradient-to-br from-red-600 to-rose-500 drop-shadow-sm scale-110'">
+                                        {{ currentWinner }}
+                                    </p>
+                                </div>
+                            </transition>
+                        </div>
+                    </div>
+
+                    <!-- 4. 結果列表區 -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-64 flex flex-col">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                🏆 歷史得獎名單
+                            </h2>
+                            <button @click="exportExcel" :disabled="winners.length === 0 || isDrawing" 
+                                    class="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-200 px-4 py-2 rounded-lg transition-all text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                下載 Excel
+                            </button>
+                        </div>
+                        
+                        <div class="overflow-y-auto flex-1 rounded-xl border border-gray-100 bg-gray-50/50">
                             <table class="w-full text-left border-collapse">
-                                <thead class="bg-gray-100 sticky top-0">
+                                <thead class="bg-gray-100/80 sticky top-0 backdrop-blur-sm z-10 text-xs text-gray-500 uppercase tracking-wider">
                                     <tr>
-                                        <th class="p-3 border-b">抽獎順序</th>
-                                        <th class="p-3 border-b">獎品名稱</th>
-                                        <th class="p-3 border-b">得獎者 / 獎券</th>
+                                        <th class="p-3 font-semibold rounded-tl-xl">順序</th>
+                                        <th class="p-3 font-semibold">獎品名稱</th>
+                                        <th class="p-3 font-semibold rounded-tr-xl">得獎者 / 獎券</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <tr v-for="(winner, index) in winners" :key="index" class="hover:bg-gray-50">
-                                        <td class="p-3 border-b text-gray-500">#{{ winners.length - index }}</td>
-                                        <td class="p-3 border-b font-semibold text-blue-600">{{ winner.prize }}</td>
-                                        <td class="p-3 border-b font-bold text-lg">{{ winner.name }}</td>
+                                <tbody class="divide-y divide-gray-100 text-sm">
+                                    <tr v-for="(winner, index) in winners" :key="index" class="hover:bg-white transition bg-transparent">
+                                        <td class="p-3 text-gray-400 font-medium">#{{ winners.length - index }}</td>
+                                        <td class="p-3 font-bold text-violet-600">{{ winner.prize }}</td>
+                                        <td class="p-3 font-black text-gray-800 text-base">{{ winner.name }}</td>
                                     </tr>
                                     <tr v-if="winners.length === 0">
-                                        <td colspan="3" class="p-5 text-center text-gray-400">尚未有得獎者</td>
+                                        <td colspan="3" class="p-8 text-center text-gray-400 flex-col items-center justify-center h-full">
+                                            <span class="block text-2xl mb-2">🎁</span>
+                                            尚未抽出任何獎項
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -144,6 +233,20 @@
         </div>
     </div>
 
+    <!-- 加上按鈕高光的動畫 -->
+    <style>
+        @keyframes shine {
+            100% { left: 125%; }
+        }
+        /* 美化下拉選單箭頭 */
+        .custom-select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 1rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+    </style>
+
     <script>
         const { createApp, ref, computed } = Vue;
 
@@ -151,12 +254,12 @@
             setup() {
                 const rawParticipants = ref('');
                 const drawnParticipants = ref([]);
-                const grandPrizeWinners = ref([]); // 記錄中過大獎的「人名」
+                const grandPrizeWinners = ref([]);
                 
                 const prizes = ref([]);
                 const newPrizeName = ref('');
                 const newPrizeQty = ref(1);
-                const newPrizeIsGrand = ref(false); // 新增：是否為大獎
+                const newPrizeIsGrand = ref(false);
                 
                 const selectedPrizeIndex = ref('');
                 const winners = ref([]);
@@ -165,12 +268,10 @@
                 const currentWinnerPrize = ref('');
                 const isDrawing = ref(false);
 
-                // 核心功能：自動去除名字後面的數字與空白，取得真實人名（例如 "a1" -> "a", "jess 2" -> "jess"）
                 const getBaseName = (ticketName) => {
                     return ticketName.replace(/\s*\d+$/, '').trim();
                 };
 
-                // 計算目前有效的獎券池
                 const validParticipants = computed(() => {
                     const allList = rawParticipants.value
                         .split('\n')
@@ -181,17 +282,11 @@
                     let available = [];
 
                     for (const ticket of allList) {
-                        // 1. 如果這張獎券已經被抽走，直接排除
                         if (drawnParticipants.value.includes(ticket)) continue;
-                        
-                        // 2. 如果現在要抽的是「大獎」，檢查這個人是不是已經中過大獎了
                         if (currentPrize && currentPrize.isGrandPrize) {
                             const baseName = getBaseName(ticket);
-                            if (grandPrizeWinners.value.includes(baseName)) {
-                                continue; // 這個人已經中過大獎，這張票不能參與本次大獎抽取
-                            }
+                            if (grandPrizeWinners.value.includes(baseName)) continue;
                         }
-                        
                         available.push(ticket);
                     }
                     return available;
@@ -212,7 +307,7 @@
                         name: newPrizeName.value.trim(),
                         total: newPrizeQty.value,
                         remain: newPrizeQty.value,
-                        isGrandPrize: newPrizeIsGrand.value // 記錄是否為大獎
+                        isGrandPrize: newPrizeIsGrand.value
                     });
                     newPrizeName.value = '';
                     newPrizeQty.value = 1;
@@ -232,7 +327,7 @@
                     currentWinnerPrize.value = prize.name;
                     
                     let duration = 3000;
-                    let interval = 50;
+                    let interval = 40; // 加快跳動頻率，更有科技感
                     let elapsed = 0;
 
                     const timer = setInterval(() => {
@@ -244,11 +339,9 @@
                             clearInterval(timer);
                             
                             currentWinner.value = finalWinnerName;
-                            
                             prize.remain -= 1;
                             drawnParticipants.value.push(finalWinnerName);
                             
-                            // 3. 如果這次抽的是大獎，把得獎者的真實名字記錄到黑名單，防止他的其他票再中大獎
                             if (prize.isGrandPrize) {
                                 grandPrizeWinners.value.push(getBaseName(finalWinnerName));
                             }
@@ -269,28 +362,35 @@
                 };
 
                 const triggerConfetti = () => {
+                    // 左側發射
                     confetti({
-                        particleCount: 150,
-                        spread: 80,
-                        origin: { y: 0.6 },
-                        colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff']
+                        particleCount: 100,
+                        angle: 60,
+                        spread: 55,
+                        origin: { x: 0, y: 0.8 },
+                        colors: ['#8b5cf6', '#d946ef', '#f43f5e', '#fbbf24']
+                    });
+                    // 右側發射
+                    confetti({
+                        particleCount: 100,
+                        angle: 120,
+                        spread: 55,
+                        origin: { x: 1, y: 0.8 },
+                        colors: ['#8b5cf6', '#d946ef', '#f43f5e', '#fbbf24']
                     });
                 };
 
                 const exportExcel = () => {
                     if (winners.value.length === 0) return;
-                    
                     const exportData = [...winners.value].reverse().map((w, i) => ({
                         '抽獎順序': i + 1,
                         '獎品名稱': w.prize,
                         '得獎者': w.name
                     }));
-
                     const worksheet = XLSX.utils.json_to_sheet(exportData);
                     const workbook = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(workbook, worksheet, "得獎名單");
-                    
-                    XLSX.writeFile(workbook, "抽獎結果名單.xlsx");
+                    XLSX.writeFile(workbook, "幸運大抽獎_結果名單.xlsx");
                 };
 
                 return {
