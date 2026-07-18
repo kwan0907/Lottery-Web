@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業抽獎系統</title>
+    <!-- 引入 Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 SheetJS 用於匯出 Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- 引入 Confetti (撒花特效) -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        body { font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif; background-color: #f3f4f6; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.5s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen p-6">
+        <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-center text-blue-600 mb-8">🎉 專業抽獎系統</h1>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- 左側：設定區 -->
+                <div class="space-y-6">
+                    
+                    <!-- 1. 名單輸入區 -->
+                    <div class="bg-gray-50 p-5 rounded-lg border">
+                        <h2 class="text-xl font-bold mb-3 text-gray-700">1. 匯入抽獎券名單</h2>
+                        <p class="text-sm text-gray-500 mb-2">請將名單貼在下方（每行一張，例如：jess 1）</p>
+                        <textarea v-model="rawParticipants" rows="6" class="w-full border-gray-300 rounded-md p-3 border focus:ring-blue-500 focus:border-blue-500" placeholder="jess 1&#10;jess 2&#10;tom 1..."></textarea>
+                        <div class="mt-2 text-right text-sm font-semibold text-blue-600">
+                            目前有效獎券數：{{ validParticipants.length }} 張
+                        </div>
+                    </div>
+
+                    <!-- 2. 獎品設定區 -->
+                    <div class="bg-gray-50 p-5 rounded-lg border">
+                        <h2 class="text-xl font-bold mb-3 text-gray-700">2. 設定獎品</h2>
+                        <div class="flex gap-2 mb-4">
+                            <input v-model="newPrizeName" type="text" placeholder="獎品名稱 (如: 大獎)" class="flex-1 border-gray-300 rounded-md p-2 border">
+                            <input v-model.number="newPrizeQty" type="number" min="1" placeholder="份數" class="w-24 border-gray-300 rounded-md p-2 border">
+                            <button @click="addPrize" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">新增</button>
+                        </div>
+                        
+                        <!-- 獎品列表 -->
+                        <ul class="space-y-2">
+                            <li v-for="(prize, index) in prizes" :key="index" class="flex justify-between items-center bg-white p-2 rounded border">
+                                <span>{{ prize.name }} (總數: {{ prize.total }})</span>
+                                <span class="text-sm font-bold" :class="prize.remain === 0 ? 'text-red-500' : 'text-green-500'">
+                                    剩餘: {{ prize.remain }}
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 右側：抽獎與結果區 -->
+                <div class="space-y-6">
+                    
+                    <!-- 3. 抽獎區 -->
+                    <div class="bg-blue-50 p-6 rounded-lg border border-blue-100 text-center">
+                        <h2 class="text-2xl font-bold mb-4 text-blue-800">3. 進行抽獎</h2>
+                        
+                        <select v-model="selectedPrizeIndex" class="w-full mb-6 p-3 border rounded-md text-lg font-bold">
+                            <option value="" disabled>請選擇要抽出的獎品...</option>
+                            <option v-for="(prize, index) in prizes" :value="index" :disabled="prize.remain === 0">
+                                {{ prize.name }} (剩餘 {{ prize.remain }} 份)
+                            </option>
+                        </select>
+
+                        <button @click="drawWinner" 
+                                :disabled="!canDraw"
+                                class="w-full bg-red-500 text-white text-2xl font-bold py-4 rounded-full hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg transition transform hover:scale-105 active:scale-95">
+                            立刻抽出！
+                        </button>
+
+                        <!-- 最新得獎者展示 -->
+                        <transition name="fade">
+                            <div v-if="currentWinner" class="mt-6 p-6 bg-yellow-100 border-2 border-yellow-400 rounded-xl">
+                                <p class="text-gray-600 text-lg mb-1">恭喜獲得 【{{ currentWinnerPrize }}】</p>
+                                <p class="text-4xl font-black text-red-600">{{ currentWinner }}</p>
+                            </div>
+                        </transition>
+                    </div>
+
+                    <!-- 4. 結果區 -->
+                    <div class="bg-white p-5 rounded-lg border shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-gray-700">🏆 得獎名單</h2>
+                            <button @click="exportExcel" :disabled="winners.length === 0" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 transition flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                                匯出 Excel
+                            </button>
+                        </div>
+                        
+                        <div class="overflow-y-auto max-h-64 border rounded-md">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-100 sticky top-0">
+                                    <tr>
+                                        <th class="p-3 border-b">抽獎順序</th>
+                                        <th class="p-3 border-b">獎品名稱</th>
+                                        <th class="p-3 border-b">得獎者 / 獎券</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(winner, index) in winners" :key="index" class="hover:bg-gray-50">
+                                        <td class="p-3 border-b text-gray-500">#{{ index + 1 }}</td>
+                                        <td class="p-3 border-b font-semibold text-blue-600">{{ winner.prize }}</td>
+                                        <td class="p-3 border-b font-bold">{{ winner.name }}</td>
+                                    </tr>
+                                    <tr v-if="winners.length === 0">
+                                        <td colspan="3" class="p-5 text-center text-gray-400">尚未有得獎者</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+
+        createApp({
+            setup() {
+                // State
+                const rawParticipants = ref('');
+                const drawnParticipants = ref([]);
+                const prizes = ref([]);
+                const newPrizeName = ref('');
+                const newPrizeQty = ref(1);
+                const selectedPrizeIndex = ref('');
+                const winners = ref([]);
+                const currentWinner = ref('');
+                const currentWinnerPrize = ref('');
+
+                // 處理輸入的名單（去除空白行，扣除已抽中的人）
+                const validParticipants = computed(() => {
+                    const allList = rawParticipants.value
+                        .split('\n')
+                        .map(name => name.trim())
+                        .filter(name => name !== '');
+                    
+                    // 複製一份，用來扣除已經得獎的獎券
+                    let available = [...allList];
+                    drawnParticipants.value.forEach(drawn => {
+                        const index = available.indexOf(drawn);
+                        if (index > -1) {
+                            available.splice(index, 1);
+                        }
+                    });
+                    return available;
+                });
+
+                // 是否允許抽獎
+                const canDraw = computed(() => {
+                    return selectedPrizeIndex.value !== '' && 
+                           validParticipants.value.length > 0 &&
+                           prizes.value[selectedPrizeIndex.value]?.remain > 0;
+                });
+
+                // 新增獎品
+                const addPrize = () => {
+                    if (newPrizeName.value.trim() === '' || newPrizeQty.value < 1) {
+                        alert('請輸入完整的獎品名稱及最少 1 份的數量');
+                        return;
+                    }
+                    prizes.value.push({
+                        name: newPrizeName.value.trim(),
+                        total: newPrizeQty.value,
+                        remain: newPrizeQty.value
+                    });
+                    newPrizeName.value = '';
+                    newPrizeQty.value = 1;
+                };
+
+                // 抽獎邏輯
+                const drawWinner = () => {
+                    if (!canDraw.value) return;
+
+                    const pool = validParticipants.value;
+                    const prize = prizes.value[selectedPrizeIndex.value];
+
+                    // 隨機抽取
+                    const randomIndex = Math.floor(Math.random() * pool.length);
+                    const winnerName = pool[randomIndex];
+
+                    // 更新數據
+                    prize.remain -= 1;
+                    drawnParticipants.value.push(winnerName); // 記錄被抽出的獎券
+                    
+                    winners.value.unshift({
+                        prize: prize.name,
+                        name: winnerName
+                    });
+
+                    // 畫面特效
+                    currentWinner.value = winnerName;
+                    currentWinnerPrize.value = prize.name;
+                    triggerConfetti();
+
+                    // 自動取消選擇（如果該獎項抽完了）
+                    if (prize.remain === 0) {
+                        selectedPrizeIndex.value = '';
+                    }
+                };
+
+                // 撒花特效
+                const triggerConfetti = () => {
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 },
+                        colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff']
+                    });
+                };
+
+                // 匯出 Excel (使用 SheetJS)
+                const exportExcel = () => {
+                    if (winners.value.length === 0) return;
+                    
+                    // 整理成 Excel 需要的格式
+                    const exportData = winners.value.map((w, i) => ({
+                        '抽獎順序': i + 1,
+                        '獎品名稱': w.prize,
+                        '得獎者': w.name
+                    }));
+
+                    // 建立工作表
+                    const worksheet = XLSX.utils.json_to_sheet(exportData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "得獎名單");
+                    
+                    // 匯出檔案
+                    XLSX.writeFile(workbook, "抽獎結果名單.xlsx");
+                };
+
+                return {
+                    rawParticipants,
+                    validParticipants,
+                    prizes,
+                    newPrizeName,
+                    newPrizeQty,
+                    selectedPrizeIndex,
+                    winners,
+                    currentWinner,
+                    currentWinnerPrize,
+                    canDraw,
+                    addPrize,
+                    drawWinner,
+                    exportExcel
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
